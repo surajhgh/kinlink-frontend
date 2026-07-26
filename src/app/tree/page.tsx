@@ -8,6 +8,39 @@ import { User, Relationship } from '@/lib/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+
+const FamilyTreeLegend = () => (
+  <div className="absolute bottom-4 left-4 bg-white rounded-xl border-2 border-gray-200 p-4 shadow-md w-64 z-10 pointer-events-none">
+    <h3 className="font-bold text-gray-900 mb-3 text-sm">Legend</h3>
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">
+            M
+          </div>
+        </div>
+        <span className="text-xs text-gray-600">Male</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          <div className="h-6 w-6 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white text-xs font-bold">
+            F
+          </div>
+        </div>
+        <span className="text-xs text-gray-600">Female</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="h-0.5 w-8 bg-pink-400"></div>
+        <span className="text-xs text-gray-600">Marriage</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="h-0.5 w-8 bg-gray-300"></div>
+        <span className="text-xs text-gray-600">Parent-Child</span>
+      </div>
+    </div>
+  </div>
+);
 
 // Family Tree Visualization Component
 interface FamilyTreeProps {
@@ -25,6 +58,13 @@ function FamilyTreeVisualization({ nodes, edges }: FamilyTreeProps) {
 
   // Build family tree structure
   const buildTree = (): TreeNode[] => {
+    // Find nodes that have at least one connection
+    const connectedNodeIds = new Set<string>();
+    edges.forEach(edge => {
+      connectedNodeIds.add(edge.fromUserId);
+      connectedNodeIds.add(edge.toUserId);
+    });
+
     // Find root nodes (people without parents in the tree)
     const childIds = new Set<string>();
     edges.forEach(edge => {
@@ -33,7 +73,8 @@ function FamilyTreeVisualization({ nodes, edges }: FamilyTreeProps) {
       }
     });
 
-    const rootNodes = nodes.filter(node => !childIds.has(node.userId));
+    // Only include root nodes that are actually connected to someone
+    const rootNodes = nodes.filter(node => !childIds.has(node.userId) && connectedNodeIds.has(node.userId));
 
     // Group couples
     const couples = new Map<string, User>();
@@ -166,43 +207,12 @@ function FamilyTreeVisualization({ nodes, edges }: FamilyTreeProps) {
   );
 
   return (
-    <div className="p-8 overflow-x-auto">
-      <div className="inline-block min-w-full">
+    <div className="p-8 min-w-max min-h-max flex justify-center items-center">
+      <div className="inline-block">
         <div className="flex flex-col gap-16">
           {treeRoots.map(root => (
             <TreeNodeComponent key={root.userId} node={root} />
           ))}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="fixed bottom-8 left-8 bg-white rounded-xl border-2 border-gray-200 p-4 shadow-xl w-64">
-        <h3 className="font-bold text-gray-900 mb-3 text-sm">Legend</h3>
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">
-                M
-              </div>
-            </div>
-            <span className="text-xs text-gray-600">Male</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 flex items-center justify-center text-white text-xs font-bold">
-                F
-              </div>
-            </div>
-            <span className="text-xs text-gray-600">Female</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="h-0.5 w-8 bg-pink-400"></div>
-            <span className="text-xs text-gray-600">Marriage</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="h-0.5 w-8 bg-gray-300"></div>
-            <span className="text-xs text-gray-600">Parent-Child</span>
-          </div>
         </div>
       </div>
     </div>
@@ -470,8 +480,34 @@ export default function FamilyTreePage() {
             ) : treeData && treeData.nodes.length > 0 ? (
               <div className="space-y-6">
                 {/* Tree Visualization */}
-                <div className="bg-white rounded-xl border border-gray-200 p-8 min-h-[600px] overflow-x-auto">
-                  <FamilyTreeVisualization nodes={treeData.nodes} edges={treeData.edges} />
+                <div className="bg-white rounded-xl border border-gray-200 p-0 min-h-[600px] overflow-hidden relative cursor-grab active:cursor-grabbing">
+                  <TransformWrapper
+                    initialScale={1}
+                    minScale={0.1}
+                    maxScale={4}
+                    centerOnInit={true}
+                    wheel={{ step: 0.1 }}
+                  >
+                    {({ zoomIn, zoomOut, resetTransform }) => (
+                      <>
+                        <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white p-2 rounded-lg shadow-md border border-gray-200 pointer-events-auto">
+                          <button onClick={() => zoomIn()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Zoom In">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                          </button>
+                          <button onClick={() => zoomOut()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Zoom Out">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+                          </button>
+                          <button onClick={() => resetTransform()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Reset Zoom">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                          </button>
+                        </div>
+                        <FamilyTreeLegend />
+                        <TransformComponent wrapperStyle={{ width: "100%", height: "600px" }}>
+                          <FamilyTreeVisualization nodes={treeData.nodes} edges={treeData.edges} />
+                        </TransformComponent>
+                      </>
+                    )}
+                  </TransformWrapper>
                 </div>
               </div>
             ) : (
