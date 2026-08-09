@@ -3,9 +3,9 @@
 import { useSession } from 'next-auth/react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { familyApi } from '@/lib/api';
 
 export default function SettingsPage() {
   const { data: session } = useSession();
@@ -31,14 +31,9 @@ export default function SettingsPage() {
 
     try {
       setError(null);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const response = await axios.get(`${apiUrl}/families/my-family`, {
-        headers: {
-          Authorization: `Bearer ${(session as any).accessToken}`,
-        },
-      });
-      setFamily(response.data.family);
-      setMembers(response.data.members);
+      const data = await familyApi.getMyFamily();
+      setFamily(data.family);
+      setMembers(data.members);
     } catch (err: any) {
       if (err.response?.status !== 404) {
         setError('Failed to fetch user profile. Please try again later.');

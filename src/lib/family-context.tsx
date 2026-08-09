@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useSession } from 'next-auth/react';
-import axios from 'axios';
+import { familyApi } from './api';
 
 export interface FamilyMember {
   userId: string;
@@ -48,7 +48,6 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       const accessToken = (session as any)?.accessToken;
 
       if (!accessToken) {
@@ -58,17 +57,13 @@ export function FamilyProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      console.log('[FamilyProvider] Fetching family data from:', `${apiUrl}/families/my-family`);
-      const response = await axios.get(`${apiUrl}/families/my-family`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+      console.log('[FamilyProvider] Fetching family data via api...');
+      const data = await familyApi.getMyFamily();
 
-      console.log('[FamilyProvider] Family data received:', response.data);
-      setFamily(response.data.family);
-      setMembers(response.data.members);
-      setMemberCount(response.data.memberCount);
+      console.log('[FamilyProvider] Family data received:', data);
+      setFamily(data.family);
+      setMembers(data.members as unknown as FamilyMember[]);
+      setMemberCount(data.memberCount);
     } catch (err: any) {
       console.error('[FamilyProvider] Error fetching family:', err.response?.status, err.response?.data);
       if (err.response?.status === 404) {

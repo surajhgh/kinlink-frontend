@@ -66,6 +66,7 @@ export interface User {
   livingStatus?: string;
   privacy?: string;
   familyCode?: string;
+  isAdmin?: boolean;
 }
 
 export interface Relationship {
@@ -85,6 +86,7 @@ declare module 'next-auth' {
   interface Session extends DefaultSession {
     user?: DefaultSession['user'] & {
       id: string;
+      isAdmin?: boolean;
     };
     accessToken?: string;
   }

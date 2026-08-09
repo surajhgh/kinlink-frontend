@@ -132,20 +132,26 @@ export default function RequestsPage() {
                     </div>
                   </div>
                   <div className="mt-4 flex gap-3">
-                    <button
-                      onClick={() => handleApprove(request.id!)}
-                      disabled={processingIds.has(request.id!)}
-                      className="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {processingIds.has(request.id!) ? 'Processing...' : 'Approve'}
-                    </button>
-                    <button
-                      onClick={() => handleReject(request.id!)}
-                      disabled={processingIds.has(request.id!)}
-                      className="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                    >
-                      {processingIds.has(request.id!) ? 'Processing...' : 'Reject'}
-                    </button>
+                    {session.user?.isAdmin ? (
+                      <>
+                        <button
+                          onClick={() => handleApprove(request.id!)}
+                          disabled={processingIds.has(request.id!)}
+                          className="rounded-md bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                        >
+                          {processingIds.has(request.id!) ? 'Processing...' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => handleReject(request.id!)}
+                          disabled={processingIds.has(request.id!)}
+                          className="rounded-md bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {processingIds.has(request.id!) ? 'Processing...' : 'Reject'}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">Only admins can approve or reject requests.</p>
+                    )}
                   </div>
                 </div>
               ))

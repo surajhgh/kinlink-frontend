@@ -48,6 +48,7 @@ export const authOptions: NextAuthConfig = {
             id: data.user.id,
             email: data.user.email,
             name: data.user.fullName,
+            isAdmin: data.user.isAdmin,
             accessToken: data.token,
           };
         } catch (error) {
@@ -98,6 +99,7 @@ export const authOptions: NextAuthConfig = {
           const data = await response.json();
           token.accessToken = data.token;
           token.userId = data.user.userId;
+          token.isAdmin = data.user.isAdmin;
         } catch (error) {
           console.error('JWT callback Google auth error:', error);
         }
@@ -108,6 +110,7 @@ export const authOptions: NextAuthConfig = {
         console.log('[JWT Callback] User from credentials:', { id: user.id, email: user.email });
         token.accessToken = user.accessToken;
         token.userId = user.id;
+        token.isAdmin = (user as any).isAdmin;
       }
 
       return token;
@@ -116,8 +119,9 @@ export const authOptions: NextAuthConfig = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.userId as string;
+        session.user.isAdmin = token.isAdmin as boolean;
         (session as any).accessToken = token.accessToken as string;
-        console.log('[Session Callback] Session updated:', { userId: token.userId });
+        console.log('[Session Callback] Session updated:', { userId: token.userId, isAdmin: token.isAdmin });
       }
       return session;
     },

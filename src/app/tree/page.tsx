@@ -53,66 +53,65 @@ interface TreeNode extends User {
   children?: TreeNode[];
 }
 
-function FamilyTreeVisualization({ nodes, edges }: FamilyTreeProps) {
-  const router = useRouter();
+// Extract buildTree out of the component
+function buildTree(nodes: User[], edges: Relationship[]): TreeNode[] {
+  // Find nodes that have at least one connection
+  const connectedNodeIds = new Set<string>();
+  edges.forEach(edge => {
+    connectedNodeIds.add(edge.fromUserId);
+    connectedNodeIds.add(edge.toUserId);
+  });
 
-  // Build family tree structure
-  const buildTree = (): TreeNode[] => {
-    // Find nodes that have at least one connection
-    const connectedNodeIds = new Set<string>();
-    edges.forEach(edge => {
-      connectedNodeIds.add(edge.fromUserId);
-      connectedNodeIds.add(edge.toUserId);
-    });
+  // Find root nodes (people without parents in the tree)
+  const childIds = new Set<string>();
+  edges.forEach(edge => {
+    if (edge.relationshipType === 'Father' || edge.relationshipType === 'Mother') {
+      childIds.add(edge.fromUserId);
+    }
+  });
 
-    // Find root nodes (people without parents in the tree)
-    const childIds = new Set<string>();
+  // Only include root nodes that are actually connected to someone
+  const rootNodes = nodes.filter(node => !childIds.has(node.userId) && connectedNodeIds.has(node.userId));
+
+  // Group couples
+  const couples = new Map<string, User>();
+  edges.forEach(edge => {
+    if (edge.relationshipType === 'Husband' || edge.relationshipType === 'Wife') {
+      couples.set(edge.fromUserId, nodes.find(n => n.userId === edge.toUserId)!);
+    }
+  });
+
+  // Build tree recursively
+  const buildNodeTree = (person: User): TreeNode => {
+    const spouse = couples.get(person.userId);
+    
+    // Find children
+    const childrenIds = new Set<string>();
     edges.forEach(edge => {
-      if (edge.relationshipType === 'Father' || edge.relationshipType === 'Mother') {
-        childIds.add(edge.fromUserId);
+      if ((edge.toUserId === person.userId || edge.toUserId === spouse?.userId) &&
+          (edge.relationshipType === 'Father' || edge.relationshipType === 'Mother')) {
+        childrenIds.add(edge.fromUserId);
       }
     });
 
-    // Only include root nodes that are actually connected to someone
-    const rootNodes = nodes.filter(node => !childIds.has(node.userId) && connectedNodeIds.has(node.userId));
+    const children = Array.from(childrenIds)
+      .map(id => nodes.find(n => n.userId === id))
+      .filter(n => n !== undefined)
+      .map(child => buildNodeTree(child as User));
 
-    // Group couples
-    const couples = new Map<string, User>();
-    edges.forEach(edge => {
-      if (edge.relationshipType === 'Husband' || edge.relationshipType === 'Wife') {
-        couples.set(edge.fromUserId, nodes.find(n => n.userId === edge.toUserId)!);
-      }
-    });
-
-    // Build tree recursively
-    const buildNodeTree = (person: User): TreeNode => {
-      const spouse = couples.get(person.userId);
-      
-      // Find children
-      const childrenIds = new Set<string>();
-      edges.forEach(edge => {
-        if ((edge.toUserId === person.userId || edge.toUserId === spouse?.userId) &&
-            (edge.relationshipType === 'Father' || edge.relationshipType === 'Mother')) {
-          childrenIds.add(edge.fromUserId);
-        }
-      });
-
-      const children = Array.from(childrenIds)
-        .map(id => nodes.find(n => n.userId === id))
-        .filter(n => n !== undefined)
-        .map(child => buildNodeTree(child as User));
-
-      return {
-        ...person,
-        spouse,
-        children: children.length > 0 ? children : undefined
-      };
+    return {
+      ...person,
+      spouse,
+      children: children.length > 0 ? children : undefined
     };
-
-    return rootNodes.map(root => buildNodeTree(root));
   };
 
-  const treeRoots = buildTree();
+  return rootNodes.map(root => buildNodeTree(root));
+}
+
+function FamilyTreeVisualization({ nodes, edges }: FamilyTreeProps) {
+  const router = useRouter();
+  const treeRoots = buildTree(nodes, edges);
 
   // Render a person card
   const PersonCard = ({ person, isSpouse = false }: { person: User; isSpouse?: boolean }) => (
@@ -219,11 +218,75 @@ function FamilyTreeVisualization({ nodes, edges }: FamilyTreeProps) {
   );
 }
 
+function FolderTreeView({ nodes, edges }: FamilyTreeProps) {
+  const router = useRouter();
+  const treeRoots = buildTree(nodes, edges);
+
+  const FolderNode = ({ node, level = 0 }: { node: TreeNode; level?: number }) => {
+    const hasChildren = node.children && node.children.length > 0;
+    
+    return (
+      <div className="ml-6 border-l-2 border-gray-100 pl-4 py-2">
+        <details className="group" open>
+          <summary className="flex items-center gap-3 cursor-pointer list-none hover:bg-gray-50 p-2 rounded-lg transition-colors border border-transparent hover:border-gray-200">
+            <span className="text-gray-400 group-open:text-indigo-600 transition-colors w-5 flex justify-center">
+              {hasChildren ? (
+                <svg className="w-5 h-5 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              ) : (
+                <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+              )}
+            </span>
+            
+            <span className="text-xl">{hasChildren ? '📁' : '📄'}</span>
+            
+            <div className="flex flex-col flex-1" onClick={(e) => {
+              // Prevent details toggle if they click the name to go to profile
+              e.preventDefault();
+              router.push(`/profile/${node.userId}`);
+            }}>
+              <span className="font-semibold text-gray-900 flex items-center gap-2 hover:text-indigo-600 hover:underline">
+                {node.fullName} 
+                <span className={`text-xs px-2 py-0.5 rounded-full ${node.gender === 'Female' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>
+                  {node.gender === 'Female' ? '♀' : '♂'}
+                </span>
+              </span>
+              {node.spouse && (
+                <span className="text-xs text-gray-500 mt-0.5">
+                  ⚭ Married to {node.spouse.fullName}
+                </span>
+              )}
+            </div>
+          </summary>
+          
+          {hasChildren && (
+            <div className="mt-1">
+              {node.children!.map(child => (
+                <FolderNode key={child.userId} node={child} level={level + 1} />
+              ))}
+            </div>
+          )}
+        </details>
+      </div>
+    );
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-8 min-h-[600px] shadow-sm">
+      <div className="-ml-6">
+        {treeRoots.map(root => (
+          <FolderNode key={root.userId} node={root} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function FamilyTreePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [treeData, setTreeData] = useState<{ nodes: User[]; edges: Relationship[] } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'graphical' | 'folder'>('folder');
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -445,22 +508,32 @@ export default function FamilyTreePage() {
                   </svg>
                 </button>
 
-                <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  <option>Layout</option>
-                  <option>Hierarchical</option>
-                  <option>Radial</option>
-                  <option>Force Directed</option>
-                </select>
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setViewMode('graphical')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'graphical' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Graphical
+                  </button>
+                  <button
+                    onClick={() => setViewMode('folder')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${viewMode === 'folder' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Folder
+                  </button>
+                </div>
 
-                <button
-                  onClick={() => router.push('/invitations')}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Member
-                </button>
+                {session.user?.isAdmin && (
+                  <button
+                    onClick={() => router.push('/invitations')}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Member
+                  </button>
+                )}
 
                 <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -479,48 +552,53 @@ export default function FamilyTreePage() {
               </div>
             ) : treeData && treeData.nodes.length > 0 ? (
               <div className="space-y-6">
-                {/* Tree Visualization */}
-                <div className="bg-white rounded-xl border border-gray-200 p-0 min-h-[600px] overflow-hidden relative cursor-grab active:cursor-grabbing">
-                  <TransformWrapper
-                    initialScale={1}
-                    minScale={0.1}
-                    maxScale={4}
-                    centerOnInit={true}
-                    wheel={{ step: 0.1 }}
-                  >
-                    {({ zoomIn, zoomOut, resetTransform }) => (
-                      <>
-                        <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white p-2 rounded-lg shadow-md border border-gray-200 pointer-events-auto">
-                          <button onClick={() => zoomIn()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Zoom In">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                          </button>
-                          <button onClick={() => zoomOut()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Zoom Out">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
-                          </button>
-                          <button onClick={() => resetTransform()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Reset Zoom">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                          </button>
-                        </div>
-                        <FamilyTreeLegend />
-                        <TransformComponent wrapperStyle={{ width: "100%", height: "600px" }}>
-                          <FamilyTreeVisualization nodes={treeData.nodes} edges={treeData.edges} />
-                        </TransformComponent>
-                      </>
-                    )}
-                  </TransformWrapper>
-                </div>
+                {viewMode === 'graphical' ? (
+                  <div className="bg-white rounded-xl border border-gray-200 p-0 min-h-[600px] overflow-hidden relative cursor-grab active:cursor-grabbing">
+                    <TransformWrapper
+                      initialScale={1}
+                      minScale={0.1}
+                      maxScale={4}
+                      centerOnInit={true}
+                      wheel={{ step: 0.1 }}
+                    >
+                      {({ zoomIn, zoomOut, resetTransform }) => (
+                        <>
+                          <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white p-2 rounded-lg shadow-md border border-gray-200 pointer-events-auto">
+                            <button onClick={() => zoomIn()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Zoom In">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                            </button>
+                            <button onClick={() => zoomOut()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Zoom Out">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+                            </button>
+                            <button onClick={() => resetTransform()} className="p-2 hover:bg-gray-100 rounded text-gray-700 transition" title="Reset Zoom">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            </button>
+                          </div>
+                          <FamilyTreeLegend />
+                          <TransformComponent wrapperStyle={{ width: "100%", height: "600px" }}>
+                            <FamilyTreeVisualization nodes={treeData.nodes} edges={treeData.edges} />
+                          </TransformComponent>
+                        </>
+                      )}
+                    </TransformWrapper>
+                  </div>
+                ) : (
+                  <FolderTreeView nodes={treeData.nodes} edges={treeData.edges} />
+                )}
               </div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
                 <span className="text-6xl mb-4 block">🌳</span>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">No Family Tree Yet</h3>
                 <p className="text-gray-600 mb-6">Start building your family tree by adding members</p>
-                <button
-                  onClick={() => router.push('/invitations')}
-                  className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition"
-                >
-                  Add First Member
-                </button>
+                {session.user?.isAdmin && (
+                  <button
+                    onClick={() => router.push('/invitations')}
+                    className="px-6 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition"
+                  >
+                    Add First Member
+                  </button>
+                )}
               </div>
             )}
           </div>

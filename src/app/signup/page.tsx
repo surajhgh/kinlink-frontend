@@ -14,6 +14,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -46,6 +47,7 @@ export default function SignupPage() {
         email,
         password,
         fullName,
+        isAdmin,
       });
 
       if (response.data.token) {
@@ -189,6 +191,20 @@ export default function SignupPage() {
             {errors.confirmPassword && (
               <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
             )}
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="isAdmin"
+              checked={isAdmin}
+              onChange={(e) => setIsAdmin(e.target.checked)}
+              disabled={isLoading}
+              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <label htmlFor="isAdmin" className="text-sm font-medium text-gray-700">
+              Register as Admin
+            </label>
           </div>
 
           <button

@@ -205,8 +205,13 @@ export const familyApi = {
   async getMyFamily(): Promise<{ family: any; members: User[]; memberCount: number }> {
     // For backward compatibility, convert tree data to old format
     const treeData = await familyApi.getMyFamilyTree();
+    const rootUser = treeData.nodes.find(n => n.userId === treeData.rootUserId);
     return {
-      family: null,
+      family: rootUser ? {
+        familyName: `${rootUser.fullName}'s Family`,
+        familyCode: rootUser.personalCode,
+        ownerUserId: rootUser.userId,
+      } : null,
       members: treeData.nodes,
       memberCount: treeData.nodes.length,
     };
